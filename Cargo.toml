@@ -7,8 +7,13 @@ edition = "2021"
 syn = { version = "*", features = ["full"] }
 quote = "*"
 proc-macro2 = "*"
+tokio = { version = "1", features = ["full"] }
 
 [lib]
 proc-macro = true
-path = "src/lib.rs"
+path = "src/plugins.rs"
 name = "macrocosm"
+
+[[bin]]
+name = "app"
+path = "src/main.rs"
