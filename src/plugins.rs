@@ -2,11 +2,13 @@
 
 
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::{quote, ToTokens};
-use std::collections::HashSet as Set;
+use std::collections::{HashMap, HashSet as Set};
+use std::io::Write;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{parse_macro_input, parse_quote, Expr, FnArg, Ident, ItemFn, Local, Pat, ReturnType, Stmt, Token};
+use syn::{parse_macro_input, parse_quote, Data, DeriveInput, Expr, FnArg, Ident, ItemFn, Local, Pat, ReturnType, Stmt, Token, Type};
 
 
 
@@ -97,6 +99,13 @@ impl Parse for Args {
     the request body, also to get the Rust token codes from TokenStream 
     we must use syn::parse and to get the TokenStream from Rust codes 
     we msut use quote
+
+    ex:
+    #[passport_proc(access=all)]
+    #[passport_proc(access=user)]
+    #[passport_proc(access=admin)]
+    #[passport_proc(access=dev)]
+    fn im_a_method(){}
 */
 #[proc_macro_attribute]
 pub fn passport(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -238,12 +247,11 @@ pub fn gokio(args: TokenStream, input: TokenStream) -> TokenStream {
     // -- quote!{} parses injected Rust, AST and TokenStream codes to generate TokenStream
 
 
-    // extracting the function signature
+    // extracting the function
     // let mut async_function = parse_macro_input!(input as ItemFn);
-    println!("{:#?}", input);
     let mut async_function = syn::parse::<syn::ItemFn>(input.clone()).unwrap(); // function is ItemFn with attrs, vis, sig and block
 
-    // extracting function return type, must be converted into TokenStream
+    // extracting function signature and return type, must be converted into TokenStream
     let function_ret_type = match &async_function.sig.output{
         ReturnType::Type(_, ty) => quote!{#ty},
         ReturnType::Default => quote!{ () },
@@ -303,32 +311,63 @@ pub fn gokio(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
-pub fn passport_proc(input: TokenStream) -> TokenStream {
+// we must extract Rust and real codes from AST corresponding the TokenStream
+// then inject into existing code and convert the existing code into TokenStream
+pub fn procme(input: TokenStream) -> TokenStream { 
 
-    // ex:
-    // #[passport_proc]
-    // #[passport_proc(access=all)]
-    // #[passport_proc(access=user)]
-    // #[passport_proc(access=admin)]
-    // #[passport_proc(access=dev)]
-    // fn im_a_method(){}
-    
+    // #[procme]
+    // fn somefunc(){}
+    // ...
+
     input
-
 }
 
-#[proc_macro_derive(Passport)]
-pub fn derive_proc_macro(input: TokenStream) -> TokenStream {
 
-    // ex:
-    // #[derive(Passport)]
-    // struct SexyStruct{}
+#[proc_macro_derive(SaveMe)]
+// we must extract Rust and real codes from AST corresponding the TokenStream
+// then inject into existing code and convert the existing code into TokenStream
+pub fn saveme(input: TokenStream) -> TokenStream { 
+
+    // -- syn parses TokenStream to AST and Rust codes like ItemFn, Ident (name of fields, structs and functions), Data, Fields ...
+    // -- # allows us to interpolate generated and parsed Rust, AST and TokenStream codes into quote!{}  
+    // -- quote!{} parses injected Rust, AST and TokenStream codes to generate TokenStream
     
-    // this will be implemented in here for the struct inside input token stream
-    // so later on we can call the method on the struct once we implement the
-    // method for the struct in here.
-    // SexyStruct::passport() // like checking jwt in request object
+    // converting TokenStream into DeriveInput AST
+    let derive_input = syn::parse::<DeriveInput>(input.clone()).unwrap();
 
-    input
+    // extracting structure name and fields
+    let struct_name = &derive_input.ident;
+    let fields = match derive_input.data{
+        Data::Struct(data) => data.fields,
+        _ => panic!("expected struct"),
+    };
+
+    // save struct into a file
+    let str_struct_path = format!("{}.json", struct_name.to_string());
+    let mut file = std::fs::File::create(&str_struct_path).unwrap(); // can't use ? since the return type is not of type Result<>
+    let mut field_infos = vec![];
+    for f in fields{
+        field_infos.push(
+            f.ident.unwrap().to_string()
+        )
+    }
+    let struct_data = serde_json::json!({
+        "name": struct_name.to_string(),
+        "fields": field_infos
+    });
+    let stringified_value = serde_json::to_string_pretty(&struct_data).unwrap();
+    file.write_all(stringified_value.as_bytes()).unwrap();
+
+    // code injection goes into quote!{}
+    let output = quote! {
+        
+    };
+
+    // Return the modified token stream
+    output.into()
+
+    // don't return the input itself cause compiler says:
+    // name `Data` is defined multiple times `Data` must be defined only once in the type namespace of this module
+    // in which `Data` is the name of the struct that is being annotated with this macro
 
 }

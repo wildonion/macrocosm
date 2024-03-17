@@ -1,27 +1,20 @@
 
 
-use macrocosm::{go, gokio};
+use macrocosm::{go, gokio, passport, SaveMe};
+use tokio::net::unix::SocketAddr;
 mod mac;
 
 
-#[derive(Debug)]
+#[derive(Debug, SaveMe)] // SaveMe save the struct info into a file at compile time
 struct Data{
-    pub Numbers: Vec<i32>
+    pub Numbers: Vec<i32>,
+    pub name: String, 
+    pub socket: SocketAddr
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>{
 
-    // sleep asyncly
-    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await; 
-
-    let d = Data{ 
-        Numbers: 
-            (0..100)
-                .into_iter()
-                .map(|i| i*100)
-                .collect::<Vec<i32>>()
-    };
 
     Ok(())
 }
