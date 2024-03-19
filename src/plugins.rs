@@ -313,15 +313,21 @@ pub fn gokio(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro]
 // we must extract Rust and real codes from AST corresponding the TokenStream
 // then inject into existing code and convert the existing code into TokenStream
-pub fn procme(input: TokenStream) -> TokenStream { 
+// ...
+// defer statement is used to schedule a function call to be executed when the 
+// surrounding function returns will be executed in reverse order of their appearance
+pub fn defer(input: TokenStream) -> TokenStream { 
 
-    // #[procme]
-    // fn somefunc(){}
-    // ...
+    // converting the input TokenStream into the ItemFn AST
+    let func = syn::parse::<ItemFn>(input.clone()).unwrap();
+
+    // get a list of all functions that are about to get executed inside the stack 
+    // make another global stack then push this func into that
+    // pop this method out from the first stack 
+    // inject a recover function into this method which avoid the last panic from hapening once it gets called
 
     input
 }
-
 
 #[proc_macro_derive(SaveMe)]
 // we must extract Rust and real codes from AST corresponding the TokenStream
@@ -332,7 +338,8 @@ pub fn saveme(input: TokenStream) -> TokenStream {
     // -- # allows us to interpolate generated and parsed Rust, AST and TokenStream codes into quote!{}  
     // -- quote!{} parses injected Rust, AST and TokenStream codes to generate TokenStream
     
-    // converting TokenStream into DeriveInput AST
+    // converting TokenStream into DeriveInput AST since the type which 
+    // has annotated with this macro is struct we go for parsing the struct
     let derive_input = syn::parse::<DeriveInput>(input.clone()).unwrap();
 
     // extracting structure name and fields
