@@ -5,6 +5,7 @@ use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{quote, ToTokens};
 use std::collections::{HashMap, HashSet as Set};
+use std::f64::consts::E;
 use std::io::Write;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
@@ -101,10 +102,10 @@ impl Parse for Args {
     we msut use quote
 
     ex:
-    #[passport_proc(access=all)]
-    #[passport_proc(access=user)]
-    #[passport_proc(access=admin)]
-    #[passport_proc(access=dev)]
+    #[passport_proc(admin)]
+    #[passport_proc(user)]
+    #[passport_proc(dev)]
+    #[passport_proc(access=admin,user,dev)]
     fn im_a_method(){}
 */
 #[proc_macro_attribute]
@@ -241,11 +242,9 @@ pub fn go(args: TokenStream, input: TokenStream) -> TokenStream{
 #[proc_macro_attribute]
 pub fn gokio(args: TokenStream, input: TokenStream) -> TokenStream { 
 
-
-    // -- syn parses TokenStream to AST and Rust codes like ItemFn, Ident, ...
+    // -- syn parses TokenStream to AST and Rust codes like Stmt, ItemFn, Ident (name of fields, structs and functions), Data, Fields, ...
     // -- # allows us to interpolate generated and parsed Rust, AST and TokenStream codes into quote!{}  
     // -- quote!{} parses injected Rust, AST and TokenStream codes to generate TokenStream
-
 
     // extracting the function
     // let mut async_function = parse_macro_input!(input as ItemFn);
@@ -254,7 +253,7 @@ pub fn gokio(args: TokenStream, input: TokenStream) -> TokenStream {
     // extracting function signature and return type, must be converted into TokenStream
     let function_ret_type = match &async_function.sig.output{
         ReturnType::Type(_, ty) => quote!{#ty},
-        ReturnType::Default => quote!{ () },
+        ReturnType::Default => quote!{ () }, // Default AST is ()
     };
 
     // extracting function args
@@ -296,7 +295,6 @@ pub fn gokio(args: TokenStream, input: TokenStream) -> TokenStream {
 
     TokenStream::from(quote!(#async_function))
 
-
     // OR
 
     // combine the generated code with the original function body
@@ -310,31 +308,66 @@ pub fn gokio(args: TokenStream, input: TokenStream) -> TokenStream {
 
 }
 
-#[proc_macro]
+#[proc_macro_attribute]
 // we must extract Rust and real codes from AST corresponding the TokenStream
 // then inject into existing code and convert the existing code into TokenStream
 // ...
 // defer statement is used to schedule a function call to be executed when the 
-// surrounding function returns will be executed in reverse order of their appearance
-pub fn defer(input: TokenStream) -> TokenStream { 
+// surrounding function returns, they will be executed in reverse order of their appearance
+pub fn defer(args: TokenStream, input: TokenStream) -> TokenStream { 
+
+    // The defer procedural macro creates a new instance of Defer when invoked.
+    // The Defer struct holds a closure that will be executed when an Defer instance is dropped.
+    // The closure is executed in the Drop implementation of Defer, ensuring it runs when the surrounding scope exits which is about to be ended and died
+    pub struct Defer<F: FnOnce()>{
+        f: Option<F>
+    }
+    
+    impl<F: FnOnce()> Defer<F>{
+        fn new(f: F) -> Defer<F>{
+            Defer::<F>{
+                f: Some(f)
+            }
+        }
+    }
+    
+    // introduce generics and boundaries in impl<>
+    impl<F: FnOnce()> Drop for Defer<F>{
+    
+        fn drop(&mut self) {
+            if let Some(f) = self.f.take(){
+                f();
+            }
+        }
+    } 
 
     // converting the input TokenStream into the ItemFn AST
-    let func = syn::parse::<ItemFn>(input.clone()).unwrap();
+    let mut func = syn::parse::<ItemFn>(input.clone()).unwrap();
+    
+    // AST contains token and Rust types that can be used to extract info about a type
+    let fn_name = &func.sig.ident;
 
-    // get a list of all functions that are about to get executed inside the stack 
-    // make another global stack then push this func into that
-    // pop this method out from the first stack 
-    // inject a recover function into this method which avoid the last panic from hapening once it gets called
+    // generate TokenStream from the AST and Rust codes
+    let expanded = quote!{
+        Defer::new(||{
+            println!("deferred code executed for function: {}", #fn_name);
+        });
+    };
 
-    input
+    // generate TokenStream from the AST and Rust codes using quote!{}
+    TokenStream::from(expanded)
+
 }
 
+// ✦•┈๑⋅⋯ ⋯⋅๑┈•✦
+// જ⁀➴ ✅
+// ✦•┈๑⋅⋯ ⋯⋅๑┈•✦
 #[proc_macro_derive(SaveMe)]
 // we must extract Rust and real codes from AST corresponding the TokenStream
 // then inject into existing code and convert the existing code into TokenStream
 pub fn saveme(input: TokenStream) -> TokenStream { 
 
-    // -- syn parses TokenStream to AST and Rust codes like ItemFn, Ident (name of fields, structs and functions), Data, Fields ...
+    // -- syn parses TokenStream to AST and Rust codes like Stmt, ItemFn, Ident (name of fields, structs and functions), Data, Fields ...
     // -- # allows us to interpolate generated and parsed Rust, AST and TokenStream codes into quote!{}  
     // -- quote!{} parses injected Rust, AST and TokenStream codes to generate TokenStream
     
@@ -377,4 +410,4 @@ pub fn saveme(input: TokenStream) -> TokenStream {
     // name `Data` is defined multiple times `Data` must be defined only once in the type namespace of this module
     // in which `Data` is the name of the struct that is being annotated with this macro
 
-}
+}  

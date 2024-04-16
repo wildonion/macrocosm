@@ -1,6 +1,6 @@
 
 
-use macrocosm::{go, gokio, passport, SaveMe};
+use macrocosm::{go, gokio, passport, SaveMe, defer};
 use tokio::net::unix::SocketAddr;
 mod mac;
 
@@ -15,6 +15,11 @@ struct Data{
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>{
 
+    #[defer]
+    pub async fn deferMe(){
+        println!("defer function");
+    }
 
     Ok(())
+
 }
