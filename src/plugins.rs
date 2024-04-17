@@ -11,8 +11,6 @@ use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{parse_macro_input, parse_quote, Data, DeriveInput, Expr, FnArg, Ident, ItemFn, Local, Pat, ReturnType, Stmt, Token, Type};
 
-
-
 /*  > -------------------------------------------
     |           proc macro functions 
     | ------------------------------------------
@@ -33,7 +31,7 @@ use syn::{parse_macro_input, parse_quote, Data, DeriveInput, Expr, FnArg, Ident,
     https://blog.logrocket.com/procedural-macros-in-rust/
     https://danielkeep.github.io/tlborm/book/README.html
     https://developerlife.com/2022/03/30/rust-proc-macro/
-
+    https://github.com/dtolnay/proc-macro-workshop
 
     since macro processing in Rust happens after the construction of the AST, as such, 
     the syntax used to invoke a macro must be a proper part of the language's syntax 
@@ -316,31 +314,6 @@ pub fn gokio(args: TokenStream, input: TokenStream) -> TokenStream {
 // surrounding function returns, they will be executed in reverse order of their appearance
 pub fn defer(args: TokenStream, input: TokenStream) -> TokenStream { 
 
-    // The defer procedural macro creates a new instance of Defer when invoked.
-    // The Defer struct holds a closure that will be executed when an Defer instance is dropped.
-    // The closure is executed in the Drop implementation of Defer, ensuring it runs when the surrounding scope exits which is about to be ended and died
-    pub struct Defer<F: FnOnce()>{
-        f: Option<F>
-    }
-    
-    impl<F: FnOnce()> Defer<F>{
-        fn new(f: F) -> Defer<F>{
-            Defer::<F>{
-                f: Some(f)
-            }
-        }
-    }
-    
-    // introduce generics and boundaries in impl<>
-    impl<F: FnOnce()> Drop for Defer<F>{
-    
-        fn drop(&mut self) {
-            if let Some(f) = self.f.take(){
-                f();
-            }
-        }
-    } 
-
     // converting the input TokenStream into the ItemFn AST
     let mut func = syn::parse::<ItemFn>(input.clone()).unwrap();
     
@@ -349,9 +322,44 @@ pub fn defer(args: TokenStream, input: TokenStream) -> TokenStream {
 
     // generate TokenStream from the AST and Rust codes
     let expanded = quote!{
-        Defer::new(||{
-            println!("deferred code executed for function: {}", #fn_name);
+
+        // note that defining structs and functions must be inside quote!{}
+        // The defer procedural macro creates a new instance of Defer when invoked.
+        // The Defer struct holds a closure that will be executed when an Defer instance is dropped.
+        // The closure is executed in the Drop implementation of Defer, ensuring it runs when the surrounding scope exits which is about to be ended and died
+        pub struct Defer<F: FnOnce()>{
+            f: Option<F>
+        }
+
+        impl<F: FnOnce()> Defer<F>{
+            fn new(f: F) -> Defer<F>{
+                Defer::<F>{
+                    f: Some(f)
+                }
+            }
+        }
+
+        // introduce generics and boundaries in impl<>
+        impl<F: FnOnce()> Drop for Defer<F>{
+
+            fn drop(&mut self) {
+                if let Some(f) = self.f.take(){
+                    f();
+                }
+            }
+        } 
+
+        let _ = Defer::new(||{
+            // The error "cannot find value run in this scope" occurs because the run function is defined within 
+            // the same module as the defer procedural macro, and the macro expansion is trying to access the run 
+            // function in the same scope where it is not defined
+            // The defer procedural macro now correctly references the function name using stringify!(#fn_name) 
+            // to access the function name within the macro expansion.
+            // The run function should be defined in the same module where the defer macro is used to ensure 
+            // it is accessible during macro expansion.
+            println!("deferred code executed for function: {}", stringify!(#fn_name));
         });
+
     };
 
     // generate TokenStream from the AST and Rust codes using quote!{}

@@ -17,5 +17,5 @@ path = "src/plugins.rs"
 name = "macrocosm"
 
 [[bin]]
-name = "app"
+name = "macrocosm"
 path = "src/main.rs"
